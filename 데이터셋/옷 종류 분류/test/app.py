@@ -12,6 +12,12 @@ import requests
 import base64
 from datetime import datetime
 import time
+from dotenv import load_dotenv
+from pathlib import Path
+
+# .env 파일 로드 (상위 디렉토리의 .env 파일 사용)
+env_path = Path(__file__).parents[3] / '.env'
+load_dotenv(dotenv_path=env_path)
 
 # 캐시 설정
 @st.cache_resource
@@ -26,7 +32,7 @@ def load_classification_model():
 @st.cache_resource
 def load_pattern_model():
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    checkpoint = torch.load('데이터셋/옷 패턴 분류/model/best_model_with_classes.pt', map_location=DEVICE)
+    checkpoint = torch.load('데이터셋\옷 종류 분류\model\clothes_pattern.pt', map_location=DEVICE)
     class_names = checkpoint['class_names']
     num_classes = len(class_names)
     
@@ -176,7 +182,10 @@ def predict_pattern(image, model, class_names, device):
     return predicted_class, confidence
 
 # FASHN API 설정
-API_KEY = "fa-FPZPAPlWMd3P-EfsU8GYozuwCk7BgfQBMiQnH"
+API_KEY = os.getenv("FASHN_API_KEY")
+if not API_KEY:
+    st.error("FASHN API 키가 설정되지 않았습니다. .env 파일을 확인해주세요.")
+    st.stop()
 BASE_URL = "https://api.fashn.ai/v1"
 
 def encode_image_to_base64(image_path):
