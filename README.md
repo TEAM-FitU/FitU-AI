@@ -26,7 +26,7 @@ FASHN_API_KEY= YOUR_API_KEY
 
 [패턴 분류 모델](https://drive.google.com/file/d/1a9mXbCGYCf8TrJOoWjsyWiZznisjQJgt/view?usp=sharing)
 
-## 실행법
+## 실행법 (streamlit)
 ### GPT
 
 콘솔창에 `streamlit run 'GPT/streamlit_test.py'`
