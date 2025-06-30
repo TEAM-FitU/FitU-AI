@@ -1,6 +1,7 @@
 .env
 *.json
 *.jpg
+*.jpeg
 *.JPG
 *.webp
 *.pth
@@ -12,7 +13,12 @@
 *.hwp
 *.png
 *.zip
+*.pptx
+*.docx
+*.pyc
+
 
 virtual_try_on/catvton-flux/
 virtual_try_on/PromptDresser/
 virtual_try_on/tryondiffusion/
+virtual_try_on/IDM-VTON/

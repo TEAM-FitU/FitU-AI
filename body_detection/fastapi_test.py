@@ -1,69 +1,55 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from ultralytics import YOLO
 import numpy as np
 import cv2
 from PIL import Image
+import requests
 import io
-import base64
 
 app = FastAPI()
+model = YOLO("../models/yolo12s.pt", task="detect")
 
-# Load YOLO model (사람 탐지 전용)
-model = YOLO("yolo12s.pt", task="detect")
-
-def image_to_base64(image_np):
-    _, buffer = cv2.imencode('.jpg', image_np)
-    return base64.b64encode(buffer).decode('utf-8')
+# 요청 바디 모델 정의
+class ImageRequest(BaseModel):
+    s3_url: str
 
 @app.post("/user/profile/image-analysis")
-async def analyze_profile_image(file: UploadFile = File(...)):
-    contents = await file.read()
-    image = Image.open(io.BytesIO(contents)).convert("RGB")
+async def analyze_profile_image(request: ImageRequest):
+    try:
+        response = requests.get(request.s3_url)
+        response.raise_for_status()
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"warnings": ["이미지를 불러올 수 없습니다."], "error": str(e)})
+
+    image = Image.open(io.BytesIO(response.content)).convert("RGB")
     image_np = np.array(image)
     image_height, image_width = image_np.shape[:2]
-
-    # OpenCV BGR로 변환
     image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
 
-    # 추론
     results = model(image_bgr)
 
-    response_data = {
-        "person_count": 0,
-        "warnings": [],
-        "persons": [],
-        "annotated_image_base64": None
-    }
+    warnings = []
 
     for result in results:
-        person_boxes = []
-        for box in result.boxes:
-            if result.names[int(box.cls)] == 'person':
-                person_boxes.append(box)
+        person_boxes = [
+            box for box in result.boxes
+            if result.names[int(box.cls)] == 'person'
+        ]
+        person_count = len(person_boxes)
 
-        # 결과 이미지 생성
-        annotated = result.plot(boxes=person_boxes)
-        annotated = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-        response_data["annotated_image_base64"] = image_to_base64(annotated)
+        if person_count == 0:
+            warnings.append("사람이 탐지되지 않았습니다.")
+        elif person_count > 1:
+            warnings.append(f"한 명만 나와야 합니다. 현재 인원: {person_count}")
+        elif person_count == 1:
+            box = person_boxes[0]
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            box_height = y2 - y1
+            height_ratio = box_height / image_height
 
-        if person_boxes:
-            response_data["person_count"] = len(person_boxes)
-            for i, box in enumerate(person_boxes):
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                box_width = x2 - x1
-                box_height = y2 - y1
-                width_ratio = box_width / image_width
-                height_ratio = box_height / image_height
+            if height_ratio < 0.5:
+                warnings.append("인물이 너무 멀리 있습니다. 가까이 와주세요.")
 
-                too_far = width_ratio < 0.5 or height_ratio < 0.5
-                if too_far:
-                    response_data["warnings"].append(f"Person #{i+1} is too far from the camera.")
-
-                response_data["persons"].append({
-                    "id": i + 1,
-                    "box": {"x1": x1, "y1": y1, "x2": x2, "y2": y2},
-                    "too_far": too_far
-                })
-
-    return JSONResponse(content=response_data)
+    return JSONResponse(content={"warnings": warnings})

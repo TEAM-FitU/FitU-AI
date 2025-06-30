@@ -3,7 +3,6 @@ import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image
-import onnxruntime as ort
 
 
 st.title("사람 탐지 시스템")
